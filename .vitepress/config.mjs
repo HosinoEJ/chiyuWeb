@@ -103,6 +103,9 @@ export default withPwa(
     // 主题配置
     themeConfig: {
       ...themeConfig,
+      // 将构建期文章索引一并注入主题配置，避免客户端首次请求较慢或失败时首页为空。
+      // 客户端仍会请求 public/data/postData.json，以便部署后索引更新时保持兼容。
+      postData,
       postCount: postData.length,
     },
     // markdown

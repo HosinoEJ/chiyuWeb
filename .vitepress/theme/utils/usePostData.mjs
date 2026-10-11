@@ -51,7 +51,18 @@ const groupByYear = (posts) => {
 };
 
 export const usePostData = () => {
-  const { site } = useData();
+  const { site, theme } = useData();
+
+  // VitePress 首屏可能在文章索引请求完成前就完成 hydration。
+  // 使用构建期注入的索引先渲染文章；若运行环境未注入索引，再请求 public/data/postData.json，
+  // 这样网络慢、缓存异常或请求失败时也不会出现“只有导航、没有文章”的空首页。
+  const seedPostData = () => {
+    if (postData.value.length) return;
+    const initialData = theme.value?.postData;
+    if (Array.isArray(initialData) && initialData.length) {
+      postData.value = initialData.map(normalizePost);
+    }
+  };
 
   // 兜住"旧索引"：service worker / HTTP 缓存里可能还留着归一化之前的
   // postData.json（其中 tags/categories 是字符串）。字符串一旦落到模板的
@@ -69,6 +80,7 @@ export const usePostData = () => {
   };
 
   const loadPostData = async () => {
+    seedPostData();
     if (postData.value.length) return postData.value;
     if (loadPromise) return loadPromise;
 

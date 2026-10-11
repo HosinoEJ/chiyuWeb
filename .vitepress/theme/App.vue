@@ -156,25 +156,26 @@ watch(
 );
 
 onMounted(async () => {
-  initializeCursor();
-  console.log(frontmatter.value, page.value, theme.value);
-  // 全站置灰
-  specialDayGray();
-  // 更改主题类别
-  changeSiteThemeType();
-  // 切换系统字体样式
-  changeSiteFont();
-  // 滚动监听
-  window.addEventListener("scroll", calculateScroll);
-  // 右键监听
-  window.addEventListener("contextmenu", openRightMenu);
-  // 复制监听
-  window.addEventListener("copy", copyTip);
-  // 监听系统颜色
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", changeSiteThemeType);
-  await loadPostData();
-  await nextTick();
-  store.initialLoading = false;
+  try {
+    initializeCursor();
+    // 全站置灰
+    specialDayGray();
+    // 更改系统主题和字体
+    changeSiteThemeType();
+    changeSiteFont();
+    window.addEventListener("scroll", calculateScroll);
+    window.addEventListener("contextmenu", openRightMenu);
+    window.addEventListener("copy", copyTip);
+    const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+    colorScheme.addEventListener?.("change", changeSiteThemeType);
+    await loadPostData();
+    await nextTick();
+  } catch (error) {
+    console.error("页面初始化失败", error);
+  } finally {
+    // 任一增强功能失败都不能阻塞正文和文章列表。
+    store.initialLoading = false;
+  }
 });
 
 onBeforeUnmount(() => {
