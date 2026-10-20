@@ -1,55 +1,72 @@
 <template>
   <div v-if="type === 'text'" :class="['banner', bannerType]" id="main-banner">
-    <h1 class="title-lockup" :aria-label="cnText">
+    <h1 class="title-lockup" :aria-label="`${titleEn} ${cnText}`">
       <span class="title-stage">
-        <span class="title-py" aria-hidden="true">
+        <span class="title-py" ref="titlePy" aria-hidden="true">
           <span
-            v-for="(char, index) in pyChars"
-            :key="`py-${index}`"
-            :class="['py-char', { 'o-morph': char === 'o', 'is-dot': char === '·' }]"
+            v-for="(char, index) in preChars"
+            :key="`pre-${index}`"
+            class="py-char"
             :style="{ '--i': String(index) }"
+            >{{ char }}</span
           >
-            <template v-if="char === 'o'">
-              <span class="o-glyph">o</span>
-              <span class="o-capsule">
-                <svg
-                  v-for="(icon, iconIndex) in capsuleIcons"
-                  :key="iconIndex"
-                  class="o-icon"
-                  :style="{ '--i': String(iconIndex) }"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path v-for="(path, pathIndex) in icon" :key="pathIndex" :d="path" />
-                </svg>
+          <span class="py-morph" ref="morphWrap">
+            <span class="morph-log" ref="morphLog">
+              <span class="py-char log-fade" :style="{ '--i': String(logIndex) }">L</span>
+              <span class="py-char o-morph" :style="{ '--i': String(logIndex + 1) }">
+                <span class="o-glyph">o</span>
               </span>
-            </template>
-            <template v-else>{{ char }}</template>
+              <span class="py-char g-fade" :style="{ '--i': String(logIndex + 2) }">g</span>
+            </span>
+            <span class="morph-note" ref="morphNote">Note</span>
+          </span>
+          <span
+            v-for="(char, index) in postChars"
+            :key="`post-${index}`"
+            class="py-char"
+            :style="{ '--i': String(logIndex + 3 + index) }"
+            >{{ char }}</span
+          >
+          <!-- 遮盖胶囊：放在整行文字的最后一个（DOM 末尾 + 高 z-index），
+               保证任何时候都画在 L/o/g、Note、book 之上 -->
+          <span class="o-capsule" aria-hidden="true">
+            <svg
+              v-for="(icon, iconIndex) in capsuleIcons"
+              :key="iconIndex"
+              class="o-icon"
+              :style="{ '--i': String(iconIndex) }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path v-for="(path, pathIndex) in icon" :key="pathIndex" :d="path" />
+            </svg>
           </span>
         </span>
         <span class="title-cn" aria-hidden="true">
-          <span class="cn-prefix">
-            <span
-              v-for="(char, index) in prefixChars"
-              :key="`prefix-${index}`"
-              class="cn-char prefix-char"
-              :style="{ '--i': String(prefixChars.length - 1 - index) }"
-              >{{ char }}</span
-            >
-          </span>
-          <span class="cn-brand">
-            <span
-              v-for="(char, index) in brandChars"
-              :key="`brand-${index}`"
-              class="cn-char brand-char"
-              :style="{ '--i': String(index) }"
-              >{{ char }}</span
-            >
+          <span class="cn-slide">
+            <span class="cn-prefix">
+              <span
+                v-for="(char, index) in prefixChars"
+                :key="`prefix-${index}`"
+                class="cn-char prefix-char"
+                :style="{ '--i': String(prefixChars.length - 1 - index) }"
+                >{{ char }}</span
+              >
+            </span>
+            <span class="cn-brand">
+              <span
+                v-for="(char, index) in brandChars"
+                :key="`brand-${index}`"
+                class="cn-char brand-char"
+                :style="{ '--i': String(index) }"
+                >{{ char }}</span
+              >
+            </span>
           </span>
         </span>
       </span>
@@ -100,22 +117,55 @@ import { getHitokoto } from '@/api';
 const store = mainStore();
 const { theme } = useData();
 
-// 首页标题的拼音：首屏先以它出现，结束前整行向左滑出。
-// 之后「池鱼小栈」先单独落到画面中心，再由「你好，欢迎来到」从左侧撑开，
-// 把这四个字推到欢迎语末尾的最终位置。
-// 拼音与欢迎语都使用小赖字体（title-anim.woff2 为按需子集）。
-// 动画的“o → 胶囊 → 图标轮播 → 还原”完全由 CSS 时间线驱动（见下方样式）。
-const titlePinyin = "ChiYu·XiaoZhan";
-const pyChars = titlePinyin.split("");
+// 首屏英文标题「Chiyu's Logbook」：整行从第一帧就按「Note」的实测宽度占位，
+// 所以 book 与整行的位置全程不变。逐字浮入后，胶囊直接以 Note 的脚印显形，
+// 一次把整个「Log」收进去（尺寸此后不再改变），在里面轮播图标；
+// 结束时胶囊原地淡出、Note 同拍浮现 —— 没有静止遮盖期。
+// 随后「池鱼小栈」以 Logo 形态（放大）落到画面中心，
+// 最后「你好，欢迎来到」逐字落下，同时整组像 PPT 平移一样同步平移+缩放到最终位置。
+// 英文与欢迎语都使用小赖字体（title-anim.woff2 为按需子集）。
+// 整条时间线由 CSS 驱动（见下方样式注释）。
+const titleEn = "Chiyu's Logbook";
+const enPre = "Chiyu's ";
+const enLog = "Log";
+const enPost = "book";
+const preChars = enPre.split("");
+const postChars = enPost.split("");
+// “Log” 三个字母在整行中的起始下标，用于保持逐字入场的节奏连续
+const logIndex = enPre.length;
 const cnPrefix = "你好，欢迎来到";
 const prefixChars = cnPrefix.split("");
 const cnBrand = computed(() => theme.value.siteMeta.title || "池鱼小栈");
 const brandChars = computed(() => cnBrand.value.split(""));
 const cnText = computed(() => `${cnPrefix}${cnBrand.value}`);
 
-// 标题动画在 7.55s 结束（前缀 6.8s 开始逐字入场，最后一字 7.55s 落定），这里取 7.6s 留 50ms 定稿；
-// 随机文案在动画结束后再等 3s 才开始。
-const TITLE_ANIMATION_MS = 7600;
+// 胶囊的尺寸与位置要用两段词的真实宽度（小赖为手写比例字体，em 估值不可靠），
+// 挂载后实测并写入 CSS 变量，动画直接引用；字体未就绪时用 CSS 里的 em 兜底。
+const titlePy = ref(null);
+const morphWrap = ref(null);
+const morphLog = ref(null);
+const morphNote = ref(null);
+function measureMorph() {
+  if (!titlePy.value || !morphWrap.value || !morphLog.value || !morphNote.value) return;
+  const pyRect = titlePy.value.getBoundingClientRect();
+  const morphRect = morphWrap.value.getBoundingClientRect();
+  const em = parseFloat(getComputedStyle(titlePy.value).fontSize) || 0;
+  const logW = morphLog.value.offsetWidth;
+  const noteW = morphNote.value.offsetWidth;
+  // py-morph 的左缘（= “L” 的起笔）到整行左缘的距离，只取决于 “Chiyu's ” 的宽度，全程稳定
+  const capLeft = morphRect.left - pyRect.left;
+  // 整行按 Note 的宽度占位：book 从第一帧起就停在最终位置，全程零位移
+  titlePy.value.style.setProperty("--note-w", `${noteW}px`);
+  // 胶囊脚印 = Log 与 Note 的最大宽度；左侧多留 0.12em 盖住 L 的起笔，
+  // 右缘正好落在词尾，不越过后面 book 的字形
+  const padL = 0.12 * em;
+  titlePy.value.style.setProperty("--cover-left", `${capLeft - padL}px`);
+  titlePy.value.style.setProperty("--cover-w", `${Math.max(logW, noteW) + padL}px`);
+}
+
+// 标题动画在 10.08s 结束（平移 8.95s 开始、0.6s 完成；前缀 9.52s 起逐字落，最后一字 10.08s 落定），
+// 取 10.2s 定稿；随机文案在动画结束后再等 3s 才开始。
+const TITLE_ANIMATION_MS = 10200;
 const HITOKOTO_DELAY_MS = TITLE_ANIMATION_MS + 3000;
 const titleAnimationDone = ref(false);
 let titleStartedAt = 0;
@@ -320,6 +370,11 @@ onMounted(() => {
     }, TITLE_ANIMATION_MS);
     startHitokotoCycle();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    // 实测 Log / Note 词宽；小赖字体就绪后再测一次，避免回退字体导致宽度偏差
+    requestAnimationFrame(measureMorph);
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => requestAnimationFrame(measureMorph));
+    }
   }
 });
 
@@ -354,9 +409,11 @@ onBeforeUnmount(() => {
     }
   }
   .title-lockup {
-    --title-timeline: 7.2s;
+    --title-timeline: 9.4s;
     --py-size: min(3.7rem, 7.8vw);
     --cn-size: min(2.9rem, 6.6vw);
+    // Logo 阶段品牌的放大倍数，过大会被舞台裁掉
+    --logo-scale: 1.3;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -374,8 +431,9 @@ onBeforeUnmount(() => {
     place-items: center;
     width: 15em;
     max-width: 100%;
-    overflow: hidden;
-    clip-path: inset(-0.4em 0);
+    // 只用 clip-path 做左右裁切（拼音滑出用），上下留足余量容纳放大的 Logo；
+    // 不要再加 overflow: hidden —— 它会按盒子边缘硬裁，负 inset 的余量会失效。
+    clip-path: inset(-0.9em 0);
     font-size: var(--cn-size);
   }
   .title-py {
@@ -389,6 +447,12 @@ onBeforeUnmount(() => {
     letter-spacing: -0.02em;
     line-height: 1;
     white-space: nowrap;
+    // 变形/遮盖相关的实测值统一挂在整行上（JS 写入），供子元素与胶囊继承；
+    // 这里给的是首帧兜底，字体未就绪时也不会塌掉。
+    // 兜底值按小赖字体实测换算（JS 挂载后会覆盖），保证首帧与无 JS 时大致对位
+    --note-w: 2.31em;
+    --cover-left: 3.24em;
+    --cover-w: 2.43em;
     transform: translateX(-180%);
     animation: py-exit var(--title-timeline) cubic-bezier(0.55, 0, 0.85, 0.36) both;
 
@@ -396,23 +460,58 @@ onBeforeUnmount(() => {
       position: relative;
       display: inline-block;
       line-height: 1;
+      white-space: pre;
       animation: py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
       animation-delay: calc(var(--i) * 0.04s);
 
-      &.is-dot {
-        width: 0.85em;
-        color: var(--main-font-second-color);
-        text-align: center;
-      }
-
+      // o 的占位永远保持 0.58em：胶囊在图标期就直接盖住 o+g，
+      // 整行从第一帧起就是 Note 的版式，book 一步都不挪
       &.o-morph {
         width: 0.58em;
         text-align: center;
-        will-change: width;
-        animation:
-          py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 0.04s) both,
-          o-morph var(--title-timeline) cubic-bezier(0.16, 1, 0.3, 1) both;
       }
+    }
+
+    // Log → Note 变形区：宽度从第一帧就按 Note 实测宽度占死，
+    // 之后不管是胶囊膨胀还是换字，容器宽度都不变 —— 整行与 book 零位移。
+    // “Log” 内容比 Note 窄一点，多出来的空隙由胶囊右缘盖住。
+    .py-morph {
+      position: relative;
+      z-index: 3; // 胶囊已独立成层，这里只保证变形区压住 book
+      display: inline-block;
+      width: var(--note-w);
+    }
+
+    .morph-log {
+      position: relative;
+      z-index: 2;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    // L 在胶囊完全遮盖后悄悄隐去（o 字形由 glyph-hide 负责，胶囊必须存活）
+    .log-fade {
+      animation:
+        py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 0.04s) both,
+        log-fade 0.15s linear 5.0s both;
+    }
+
+    // g 从图标期就被胶囊罩住（下伸部会露到胶囊外），所以让它随胶囊显形一起淡掉
+    .g-fade {
+      animation:
+        py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 0.04s) both,
+        log-fade 0.16s linear 1.14s both;
+    }
+
+    // Note 在遮盖下全程隐形，等胶囊开始淡出时才一起浮现（交叉溶解，替换过程完全不露馅）
+    .morph-note {
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      white-space: pre;
+      opacity: 0;
+      animation: note-in 0.3s linear 5.22s both;
     }
 
     .o-glyph {
@@ -421,15 +520,15 @@ onBeforeUnmount(() => {
       animation: glyph-hide var(--title-timeline) linear both;
     }
 
+    // 胶囊：作为整行最后一个子元素（独立图层），永远压在 L/o/g、Note、book 之上。
+    // 尺寸从出现那一刻就是「Note 的脚印」（左缘盖住 L、右缘停在词尾），全程不再改变。
     .o-capsule {
       position: absolute;
+      z-index: 9;
       top: 53%;
-      right: 0;
-      left: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 0.76em;
+      left: var(--cover-left);
+      width: var(--cover-w);
+      height: 1.12em;
       border-radius: 999px;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 45%),
@@ -469,21 +568,30 @@ onBeforeUnmount(() => {
     line-height: 1.24;
     white-space: nowrap;
 
-    // 7em = 前缀 7 个字；宽度从 0 撑到 7em 时把右侧品牌推到最终位置
+    // 平移组：前缀 7em + 品牌。Logo 阶段整组左移 3.5em 让品牌独占中心；
+    // 欢迎语出现时整组平滑平移回 0，品牌同步从 Logo 尺寸缩到正文尺寸，
+    // 两个变换同一时间、同一缓动（PPT 式平滑平移）。
+    .cn-slide {
+      display: flex;
+      flex: none;
+      align-items: baseline;
+      animation: slide-in 0.6s cubic-bezier(0.65, 0, 0.35, 1) 8.95s both;
+      will-change: transform;
+    }
+
+    // 7em = 前缀 7 个字；宽度固定，不再用宽度撑开（避免布局抖动）
     .cn-prefix {
       display: flex;
       flex: none;
       justify-content: flex-end;
       width: 7em;
-      overflow: hidden;
-      animation: prefix-push 0.55s linear 6.8s both;
     }
 
     .cn-brand {
       display: flex;
       flex: none;
       transform-origin: center;
-      animation: brand-scale 1.35s cubic-bezier(0.16, 1, 0.3, 1) 6s both;
+      animation: brand-scale 0.6s cubic-bezier(0.65, 0, 0.35, 1) 8.95s both;
       will-change: transform;
     }
 
@@ -495,13 +603,14 @@ onBeforeUnmount(() => {
     .prefix-char {
       flex: none;
       animation: prefix-char-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
-      animation-delay: calc(6.82s + var(--i) * 0.078s);
+      // 从右往左逐字落下：等品牌滑开、缩回正文尺寸后才开始，字追着它的轨迹落，中段不会挤压
+      animation-delay: calc(9.52s + var(--i) * 0.05s);
     }
 
     .brand-char {
       flex: none;
       animation: brand-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
-      animation-delay: calc(6s + var(--i) * 0.04s);
+      animation-delay: calc(7.85s + var(--i) * 0.04s);
     }
   }
   .subtitle {
@@ -626,16 +735,15 @@ onBeforeUnmount(() => {
 }
 
 /*
- * 首页标题动画（逐帧对照 workbuddy.cn 的 hero-title WebP）：
- * 0.0-1.2s   拼音逐字浮入
- * 1.09-1.70s 字母 o 撑成薄荷胶囊
- * 1.32-5.12s 胶囊内轮播 6 个图标
- * 5.26-5.62s 胶囊收窄、还原成 o
- * 5.62-6.01s 整行拼音向左滑出画面
- * 6.00-6.54s 「池鱼小栈」以 Logo 形态放大落到画面中心
- * 6.80-7.35s 「你好，欢迎来到」贴着「池鱼小栈」从右往左逐字落下
- * 6.80-7.35s 品牌一边平滑缩小一边往右平移
- * 6.82-7.55s 七个字从右到左依次落下
+ * 首页标题动画时间线（--title-timeline: 9.4s）：
+ * 0.00-1.26s 「Chiyu's Logbook」逐字浮入（整行从第一帧就按 Note 宽度占位）
+ * 1.15-1.30s  胶囊按 Note 的脚印显形，一次性把整个 Log 收进去（尺寸此后不再改变）
+ * 1.30-5.12s  胶囊内轮播 6 个图标；胶囊、book、整行位置全程不动
+ * 5.20-5.50s  胶囊原地淡出，Note 同拍浮现（交叉溶解），没有静止遮盖期
+ * 7.30-7.75s  整行英文向左滑出画面
+ * 7.85-8.39s  「池鱼小栈」以 Logo 形态（1.3 倍）落到画面中心
+ * 8.95-9.55s  整组 PPT 式平滑平移：品牌同步从 Logo 尺寸缩到正文尺寸
+ * 9.52-10.08s 「你好，欢迎来到」等品牌落定后，从右往左逐字落下
  * 最终状态即基础样式：无 JS / prefers-reduced-motion 时直接呈现欢迎语。
  */
 @keyframes py-char-in {
@@ -653,58 +761,61 @@ onBeforeUnmount(() => {
 
 @keyframes py-exit {
   0%,
-  78% {
+  77.7% {
     transform: translateX(0);
   }
-  83.5%,
+  82.4%,
   100% {
     transform: translateX(-180%);
   }
 }
 
-@keyframes o-morph {
-  0%,
-  16% {
-    width: 0.58em;
-  }
-  25%,
-  73% {
-    width: 1.6em;
-  }
-  78%,
-  100% {
-    width: 0.58em;
-  }
-}
-
+/* 胶囊显现/消退：图标期出现，遮盖与替换期间保持不动，最后在原地淡出 */
 @keyframes capsule-in {
   0%,
-  15% {
+  11.7% {
     opacity: 0;
     transform: translateY(-50%) scaleY(0.55);
   }
-  18%,
-  74% {
+  13.8%,
+  55.3% {
     opacity: 1;
     transform: translateY(-50%) scaleY(1);
   }
-  78%,
+  58.5%,
   100% {
     opacity: 0;
-    transform: translateY(-50%) scaleY(0.55);
+    transform: translateY(-50%) scaleY(1);
   }
 }
 
+/* o 字形：胶囊出现后隐藏，不再还原；最后由 Note 自己的 o 接替 */
 @keyframes glyph-hide {
   0%,
   12% {
     opacity: 1;
   }
-  15.5%,
-  73.5% {
+  14%,
+  100% {
     opacity: 0;
   }
-  78%,
+}
+
+/* 遮盖下 L / g 悄悄隐去 */
+@keyframes log-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 遮盖下 Note 现身 */
+@keyframes note-in {
+  0% {
+    opacity: 0;
+  }
   100% {
     opacity: 1;
   }
@@ -754,13 +865,23 @@ onBeforeUnmount(() => {
   }
 }
 
+/* Logo 阶段保持放大，平移开始时同步缩回正文尺寸（与 slide-in 同时间同缓动） */
 @keyframes brand-scale {
-  0%,
-  59% {
-    transform: scale(1.55);
+  0% {
+    transform: scale(var(--logo-scale));
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/* PPT 式平移：Logo 独占中心 → 欢迎语末尾的最终位置 */
+@keyframes slide-in {
+  0% {
+    transform: translateX(-3.5em);
+  }
+  100% {
+    transform: translateX(0);
   }
 }
 
@@ -777,15 +898,6 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes prefix-push {
-  0% {
-    width: 0;
-  }
-  100% {
-    width: 7em;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .title-py,
   .title-py .py-char,
@@ -793,7 +905,10 @@ onBeforeUnmount(() => {
   .title-py .o-glyph,
   .title-py .o-capsule,
   .title-py .o-icon,
-  .cn-prefix,
+  .py-morph,
+  .morph-log,
+  .morph-note,
+  .cn-slide,
   .cn-brand,
   .prefix-char,
   .brand-char {
