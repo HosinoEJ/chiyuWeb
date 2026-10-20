@@ -385,8 +385,8 @@ onBeforeUnmount(() => {
     justify-content: center;
     font-family: "Title Xiaolai", "Site Title", var(--main-font-family);
     font-size: var(--py-size);
-    font-weight: 400;
-    letter-spacing: -0.05em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     line-height: 1;
     white-space: nowrap;
     transform: translateX(-180%);
@@ -400,7 +400,7 @@ onBeforeUnmount(() => {
       animation-delay: calc(var(--i) * 0.04s);
 
       &.is-dot {
-        width: 0.72em;
+        width: 0.85em;
         color: var(--main-font-second-color);
         text-align: center;
       }
@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
     justify-content: center;
     font-family: "Title Xiaolai", "Site Title", var(--main-font-family);
     font-size: var(--cn-size);
-    font-weight: 400;
+    font-weight: 700;
     line-height: 1.24;
     white-space: nowrap;
 
