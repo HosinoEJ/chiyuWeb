@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
     width: 15em;
     max-width: 100%;
     overflow: hidden;
-    clip-path: inset(0);
+    clip-path: inset(-0.4em 0);
     font-size: var(--cn-size);
   }
   .title-py {
@@ -482,6 +482,9 @@ onBeforeUnmount(() => {
     .cn-brand {
       display: flex;
       flex: none;
+      transform-origin: center;
+      animation: brand-scale 1.35s cubic-bezier(0.16, 1, 0.3, 1) 6s both;
+      will-change: transform;
     }
 
     .cn-char {
@@ -629,9 +632,10 @@ onBeforeUnmount(() => {
  * 1.32-5.12s 胶囊内轮播 6 个图标
  * 5.26-5.62s 胶囊收窄、还原成 o
  * 5.62-6.01s 整行拼音向左滑出画面
- * 6.00-6.54s 「池鱼小栈」单独落到画面中心
+ * 6.00-6.54s 「池鱼小栈」以 Logo 形态放大落到画面中心
  * 6.80-7.35s 「你好，欢迎来到」贴着「池鱼小栈」从右往左逐字落下
- * 6.82-7.55s 七个字从右到左依次淡入，同时把四个字往右推到最终位置
+ * 6.80-7.35s 品牌一边平滑缩小一边往右平移
+ * 6.82-7.55s 七个字从右到左依次落下
  * 最终状态即基础样式：无 JS / prefers-reduced-motion 时直接呈现欢迎语。
  */
 @keyframes py-char-in {
@@ -750,6 +754,16 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes brand-scale {
+  0%,
+  59% {
+    transform: scale(1.55);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @keyframes prefix-char-in {
   0% {
     opacity: 0;
@@ -780,6 +794,7 @@ onBeforeUnmount(() => {
   .title-py .o-capsule,
   .title-py .o-icon,
   .cn-prefix,
+  .cn-brand,
   .prefix-char,
   .brand-char {
     animation: none;
