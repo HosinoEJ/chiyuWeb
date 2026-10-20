@@ -178,11 +178,13 @@ import About from "@/views/About.vue"
 
 ### 动态路由
 
-分类与标签页由 `pages/categories/[name].paths.mjs`、`pages/tags/[name].paths.mjs` 在构建时按文章数据生成，**不需要手动建文件**。新增分类或标签后重新构建即可拿到新路由。
+分类与标签页由 `pages/categories/[name].paths.mjs`、`pages/tags/[name].paths.mjs` 在构建时按文章数据生成，分类和标签分页还会生成 `/pages/categories/分类名/page/2`、`/pages/tags/标签名/page/2` 等静态路由。**不需要手动建文件**。新增文章、分类或标签后重新构建即可拿到新路由。
 
 ### 首页分页
 
-`page/[num].paths.mjs` 依据 `themeConfig.postSize` 生成 `/page/2` … `/page/N`，`Home.vue` 负责渲染并对越界页码做钳制。
+`page/[num].paths.mjs` 依据 `themeConfig.postSize` 生成 `/page/2` … `/page/N`，`Home.vue` 负责渲染并对越界页码做钳制。首页、分类和标签列表都在构建时输出到 HTML，分页使用真实链接；关闭 JavaScript 后仍可查看文章和翻页。
+
+可用 `pnpm test:nojs` 构建并检查首页、分类、标签、归档的静态文章链接和分页。
 
 ## 主题配置
 

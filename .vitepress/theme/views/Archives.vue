@@ -12,9 +12,8 @@
             v-for="(post, postIndex) in archivesData.data[year].articles"
             :key="postIndex"
             class="posts-item s-card hover"
-            @click="router.go(post.regularPath)"
           >
-            <span class="title">{{ post.title }}</span>
+            <a class="title" :href="post.regularPath">{{ post.title }}</a>
             <div class="tags">
               <a
                 v-for="(tags, tagsIndex) in post.tags"
@@ -37,7 +36,6 @@
 import { usePostData } from "@/utils/usePostData.mjs";
 
 const { postCount, archivesData, loadPostData } = usePostData();
-const router = useRouter();
 
 onMounted(() => {
   loadPostData();

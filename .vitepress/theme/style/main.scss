@@ -153,12 +153,23 @@ html {
   }
 }
 
-// 无 JS 时隐藏依赖交互和客户端数据的区域，避免 SSR 占位内容误导用户
+// 无 JS 时保留已静态生成的文章内容，隐藏仅供交互使用的控件。
 html:not(.js-enabled) {
   .main-header,
   .main-aside,
   .left-menu {
     display: none !important;
+  }
+
+  .pagination .fast-jump {
+    display: none !important;
+  }
+
+  .mian-layout,
+  .type-bar,
+  .post-item,
+  .pagination {
+    animation: none !important;
   }
 
   // 侧栏被隐藏后，正文区域需要回收宽度并保持居中布局

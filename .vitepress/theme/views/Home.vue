@@ -11,9 +11,8 @@
         <!-- 分页 -->
         <Pagination
           :total="allListTotal"
-          :page="Number(page)"
+          :page="currentPage"
           :limit="postSize"
-          :useParams="showCategories || showTags ? true : false"
           :routePath="
             showCategories
               ? `/pages/categories/${showCategories}`
@@ -66,9 +65,9 @@ const props = defineProps({
 });
 
 // 每页文章数
-const postSize = theme.value.postSize;
+const postSize = Math.max(1, Number(theme.value.postSize) || 1);
 
-// 当前页数（分类 / 标签页使用 query 参数控制，需要手动保持响应式）
+// 当前页数；旧分类/标签 ?page= 链接仍可由客户端读取。
 const currentPage = ref(props.page || 1);
 
 // 列表总数量
@@ -89,10 +88,7 @@ const totalPages = computed(() => Math.max(Math.ceil(allListTotal.value / postSi
 // 必须与 Pagination.vue 的 checkCurrentPage 保持同一口径，否则会出现
 // "页码高亮在末页、列表却是空" 这类两处行为分叉。
 //
-// ⚠️ 上界只能依据**已加载**的文章索引：索引是挂载后才 fetch 的，未就绪时
-// totalPages 恒为 1，此时钳制会把 /page/2 误判为越界 → 用户看到
-// "URL 与高亮是第 2 页、列表却是第 1 页"。故未就绪时只做下界校验，
-// 待数据到达后由下方 watch(totalPages) 再按真实页数钳制一次。
+// 未注入构建期索引的环境仍可客户端回退加载；数据未就绪时不钳制上界。
 const clampPage = (page) => {
   if (!Number.isInteger(page) || page < 1) return 1;
   if (allListTotal.value === 0) return page;
@@ -102,11 +98,11 @@ const clampPage = (page) => {
 // 获得当前页数
 const getCurrentPage = () => {
   if (props.showCategories || props.showTags) {
-    if (typeof window === "undefined") return 1;
+    if (typeof window === "undefined") return clampPage(props.page || 1);
     const routePath = route.path;
     const search = routePath.includes("?") ? routePath.split("?")[1] : window.location.search;
     const params = new URLSearchParams(search);
-    return clampPage(Number(params.get("page")));
+    if (params.has("page")) return clampPage(Number(params.get("page")));
   }
   return clampPage(props.page || 1);
 };
@@ -176,9 +172,7 @@ watch(
   () => updateCurrentPage(),
 );
 
-// 文章索引加载完成后重算一次页数。
-// 冷启动（刷新 / 直接输入 URL）时索引尚未就绪，clampPage 只做了下界校验；
-// 数据到达后 totalPages 才有真实值，此时才对越界页码做上界钳制（?page=99 → 末页）。
+// 兼容未注入构建期索引的环境：数据加载后再钳制越界页码。
 watch(totalPages, () => updateCurrentPage());
 
 watch(

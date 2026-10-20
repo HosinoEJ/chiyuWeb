@@ -53,16 +53,13 @@ const groupByYear = (posts) => {
 export const usePostData = () => {
   const { site, theme } = useData();
 
-  // VitePress 首屏可能在文章索引请求完成前就完成 hydration。
-  // 使用构建期注入的索引先渲染文章；若运行环境未注入索引，再请求 public/data/postData.json，
-  // 这样网络慢、缓存异常或请求失败时也不会出现“只有导航、没有文章”的空首页。
-  const seedPostData = () => {
-    if (postData.value.length) return;
+  // 构建期索引必须直接参与 SSR 渲染：onMounted 不会在禁用 JavaScript 时运行。
+  // 不要在服务端写入模块级 ref，否则多个页面的渲染会共享可变状态。
+  const posts = computed(() => {
+    if (postData.value.length) return postData.value;
     const initialData = theme.value?.postData;
-    if (Array.isArray(initialData) && initialData.length) {
-      postData.value = initialData.map(normalizePost);
-    }
-  };
+    return Array.isArray(initialData) ? initialData : [];
+  });
 
   // 兜住"旧索引"：service worker / HTTP 缓存里可能还留着归一化之前的
   // postData.json（其中 tags/categories 是字符串）。字符串一旦落到模板的
@@ -80,8 +77,7 @@ export const usePostData = () => {
   };
 
   const loadPostData = async () => {
-    seedPostData();
-    if (postData.value.length) return postData.value;
+    if (posts.value.length) return posts.value;
     if (loadPromise) return loadPromise;
 
     const base = site.value?.base || "/";
@@ -109,11 +105,11 @@ export const usePostData = () => {
   };
 
   return {
-    postData,
-    postCount: computed(() => postData.value.length),
-    tagsData: computed(() => groupByField(postData.value, "tags")),
-    categoriesData: computed(() => groupByField(postData.value, "categories")),
-    archivesData: computed(() => groupByYear(postData.value)),
+    postData: posts,
+    postCount: computed(() => posts.value.length),
+    tagsData: computed(() => groupByField(posts.value, "tags")),
+    categoriesData: computed(() => groupByField(posts.value, "categories")),
+    archivesData: computed(() => groupByYear(posts.value)),
     loadPostData,
   };
 };

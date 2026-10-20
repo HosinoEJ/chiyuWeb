@@ -26,11 +26,17 @@ const Theme = {
     app.component("LazyLoader", LazyLoader);
     // 插件
     enhanceAppWithTabs(app);
-    // 路由守卫
+    // 初次加载已有服务端渲染的页面，跳过路由动画，避免 hydration 时重新遮住首屏。
+    let isInitialRoute = true;
     router.onBeforeRouteChange = (to) => {
+      if (isInitialRoute) return;
       routeChange("before", to);
     };
     router.onAfterRouteChanged = (to) => {
+      if (isInitialRoute) {
+        isInitialRoute = false;
+        return;
+      }
       routeChange("after", to);
     };
   },

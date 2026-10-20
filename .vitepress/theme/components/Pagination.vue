@@ -1,28 +1,25 @@
 <!-- 分页 -->
 <template>
   <div v-if="total > 0" class="pagination">
-    <div
+    <a
       v-if="currentPage > 1"
       class="page-item prev"
-      @click="
-        jumpPage(
-          currentPage === 2 ? `${routePath}` : `${routePath}/page/${currentPage - 1}`,
-          currentPage === 2 ? 1 : currentPage - 1,
-        )
-      "
+      :href="pageHref(currentPage - 1)"
     >
       <i class="iconfont icon-page-right" />
       <span class="page-text">上页</span>
-    </div>
+    </a>
     <div class="page-number">
-      <div
+      <component
         v-for="(item, index) in pageNumber"
         :key="index"
+        :is="item === '...' ? 'span' : 'a'"
         :class="[item === '...' ? 'point' : 'page-item', { choose: item === currentPage }]"
-        @click="item !== '...' && jumpPage(item === 1 ? `${routePath}` : `${routePath}/page/${item}`, item)"
+        :href="item === '...' ? undefined : pageHref(item)"
+        :aria-current="item === currentPage ? 'page' : undefined"
       >
         <span class="page-num">{{ item }}</span>
-      </div>
+      </component>
       <!-- 快速跳转 -->
       <div :class="['fast-jump', { focus: inputFocus }]" title="快速跳转">
         <input
@@ -37,14 +34,14 @@
         <i :class="['iconfont icon-arrow-right', { click: jumpInput }]" @click.stop="fastJump" />
       </div>
     </div>
-    <div
+    <a
       v-if="currentPage * limit < total"
       class="page-item next"
-      @click="jumpPage(`${routePath}/page/${currentPage + 1}`, currentPage + 1)"
+      :href="pageHref(currentPage + 1)"
     >
       <span class="page-text">下页</span>
       <i class="iconfont icon-page-right" />
-    </div>
+    </a>
   </div>
 </template>
 
@@ -72,11 +69,6 @@ const props = defineProps({
   routePath: {
     type: String,
     default: "",
-  },
-  // 使用参数
-  useParams: {
-    type: Boolean,
-    default: false,
   },
 });
 
@@ -130,57 +122,23 @@ const validateInput = () => {
   }
 };
 
-// 跳转页面
-const jumpPage = (url, page) => {
-  currentPage.value = page;
-  // 使用参数跳转
-  if (props.useParams) {
-    if (page === 1) {
-      router.go(`${props.routePath}`);
-    } else {
-      router.go(`${props.routePath}?page=${page}`);
-    }
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("pagination-change"));
-    });
-  }
-  // 正常跳转
-  else {
-    router.go(url);
-  }
-};
+// 真实链接可供无 JavaScript 的浏览器直接打开静态分页页。
+const pageHref = (page) => (page === 1 ? props.routePath || "/" : `${props.routePath}/page/${page}`);
 
 // 快速跳转
 const fastJump = () => {
   inputFocus.value = false;
   if (!jumpInput.value) return false;
-  jumpPage(
-    jumpInput.value === 1 ? `${props.routePath}` : `${props.routePath}/page/${jumpInput.value}`,
-    jumpInput.value,
-  );
+  router.go(pageHref(jumpInput.value));
 };
 
-// 检查当前路径参数
+// 路由变化后同步页码；越界时钳到最后一页。
 const checkCurrentPage = () => {
-  if (!props.useParams) {
-    currentPage.value = props.page;
-    return;
-  }
-  const params = new URLSearchParams(window.location.search);
-  const page = Number(params.get("page"));
-  // 先做下界校验：非整数 / <= 0 / 空值一律回落到第 1 页
+  const page = Number(props.page);
   if (!Number.isInteger(page) || page < 1) {
     currentPage.value = 1;
     return;
   }
-  // 再做上界钳制：越界时钳到最后一页，而不是丢弃成第 1 页。
-  // 理由：?page=99 的用户意图是"翻到更靠后的内容"，钳到末页能给出
-  // 非空列表且当前页在页码列表内（高亮正常）；回落成第 1 页则与用户
-  // 意图相反，且会让"翻到最后一页"和"翻过头"看起来毫无区别。
-  //
-  // ⚠️ 上界只能依据**已加载**的 total：文章索引是挂载后才 fetch 的，
-  // 未就绪时 totalPages 为 0，钳制会把 ?page=2 误判成越界并与列表分叉。
-  // 未就绪时先只做下界校验，待数据到达后由 watch(totalPages) 重算。
   if (props.total <= 0) {
     currentPage.value = page;
     return;
@@ -191,11 +149,6 @@ const checkCurrentPage = () => {
 
 onMounted(() => {
   checkCurrentPage();
-  window.addEventListener("popstate", checkCurrentPage);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("popstate", checkCurrentPage);
 });
 
 watch(
@@ -203,8 +156,7 @@ watch(
   () => checkCurrentPage(),
 );
 
-// total 就绪后重算一次：只有此时才能正确判断页码是否越界，
-// 并保证「高亮页 == 列表页」不被冷启动的空索引破坏。
+// 回退加载文章索引后重算一次，避免页码越界。
 watch(totalPages, () => checkCurrentPage());
 </script>
 

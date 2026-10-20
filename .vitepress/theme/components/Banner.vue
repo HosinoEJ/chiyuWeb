@@ -1,6 +1,59 @@
 <template>
   <div v-if="type === 'text'" :class="['banner', bannerType]" id="main-banner">
-    <h1 class="title">你好，欢迎来到{{ theme.siteMeta.title }}</h1>
+    <h1 class="title-lockup" :aria-label="cnText">
+      <span class="title-stage">
+        <span class="title-py" aria-hidden="true">
+          <span
+            v-for="(char, index) in pyChars"
+            :key="`py-${index}`"
+            :class="['py-char', { 'o-morph': char === 'o', 'is-dot': char === '·' }]"
+            :style="{ '--i': String(index) }"
+          >
+            <template v-if="char === 'o'">
+              <span class="o-glyph">o</span>
+              <span class="o-capsule">
+                <svg
+                  v-for="(icon, iconIndex) in capsuleIcons"
+                  :key="iconIndex"
+                  class="o-icon"
+                  :style="{ '--i': String(iconIndex) }"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path v-for="(path, pathIndex) in icon" :key="pathIndex" :d="path" />
+                </svg>
+              </span>
+            </template>
+            <template v-else>{{ char }}</template>
+          </span>
+        </span>
+        <span class="title-cn" aria-hidden="true">
+          <span class="cn-prefix">
+            <span
+              v-for="(char, index) in prefixChars"
+              :key="`prefix-${index}`"
+              class="cn-char prefix-char"
+              :style="{ '--i': String(prefixChars.length - 1 - index) }"
+              >{{ char }}</span
+            >
+          </span>
+          <span class="cn-brand">
+            <span
+              v-for="(char, index) in brandChars"
+              :key="`brand-${index}`"
+              class="cn-char brand-char"
+              :style="{ '--i': String(index) }"
+              >{{ char }}</span
+            >
+          </span>
+        </span>
+      </span>
+    </h1>
     <div class="subtitle">
       <Transition name="fade" mode="out-in">
         <span :key="displayText" class="text" @click="toggleHitokoto">
@@ -47,6 +100,52 @@ import { getHitokoto } from '@/api';
 const store = mainStore();
 const { theme } = useData();
 
+// 首页标题的拼音：首屏先以它出现，结束前整行向左滑出。
+// 之后「池鱼小栈」先单独落到画面中心，再由「你好，欢迎来到」从左侧撑开，
+// 把这四个字推到欢迎语末尾的最终位置。
+// 拼音与欢迎语都使用小赖字体（title-anim.woff2 为按需子集）。
+// 动画的“o → 胶囊 → 图标轮播 → 还原”完全由 CSS 时间线驱动（见下方样式）。
+const titlePinyin = "ChiYu·XiaoZhan";
+const pyChars = titlePinyin.split("");
+const cnPrefix = "你好，欢迎来到";
+const prefixChars = cnPrefix.split("");
+const cnBrand = computed(() => theme.value.siteMeta.title || "池鱼小栈");
+const brandChars = computed(() => cnBrand.value.split(""));
+const cnText = computed(() => `${cnPrefix}${cnBrand.value}`);
+
+// 标题动画在 7.55s 结束（前缀 6.8s 开始逐字入场，最后一字 7.55s 落定），这里取 7.6s 留 50ms 定稿；
+// 随机文案在动画结束后再等 3s 才开始。
+const TITLE_ANIMATION_MS = 7600;
+const HITOKOTO_DELAY_MS = TITLE_ANIMATION_MS + 3000;
+const titleAnimationDone = ref(false);
+let titleStartedAt = 0;
+let titleDoneTimer = null;
+
+// “o” 胶囊内轮播的图标，顺序对齐 WorkBuddy 首页标题：
+// ∞ → 下载/波浪 → 公文包 → 公文包（勾） → </> → >_
+const capsuleIcons = [
+  [
+    "M6.8 8.2c-2.1 0-3.8 1.7-3.8 3.8s1.7 3.8 3.8 3.8c4.4 0 7.2-7.6 11.6-7.6 2.1 0 3.8 1.7 3.8 3.8s-1.7 3.8-3.8 3.8c-4.4 0-7.2-7.6-11.6-7.6Z",
+  ],
+  [
+    "M12 4.5v9.5",
+    "m8.2 10.2 3.8 3.8 3.8-3.8",
+    "M4.5 18.5c2 0 2.6-1.6 4.5-1.6s2.5 1.6 4.5 1.6 2.5-1.6 4.5-1.6 2 .6 2 .6",
+  ],
+  [
+    "M3.5 8.5h17v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9Z",
+    "M9 8.5V7a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5",
+    "M3.5 13.5h17",
+  ],
+  [
+    "M3.5 8.5h17v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9Z",
+    "M9 8.5V7a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5",
+    "m9.5 14 1.8 1.8 3.4-3.4",
+  ],
+  ["m8 7.5-4.5 4.5L8 16.5", "m16 7.5 4.5 4.5L16 16.5", "M13.6 4.8 10.4 19.2"],
+  ["m4.5 7.5 4.5 4.5-4.5 4.5", "M12 16.5h7.5"],
+];
+
 const props = defineProps({
   type: { type: String, default: 'text' },
   height: { type: String, default: 'half' },
@@ -66,6 +165,8 @@ const hitokotoInitialTimeout = ref(null);
 const manualSloganTimeout = ref(null);
 const autoSwitchInterval = ref(null);
 const autoSwitchActive = ref(false);
+// 并发请求令牌：慢请求回来后不能覆盖后发出的请求
+let hitokotoRequestId = 0;
 
 // 是否已经手动点击过一次，停止自动并锁定手动模式
 const disableAuto = ref(false);
@@ -85,7 +186,10 @@ const displayText = computed(() =>
 
 // 点击处理：
 // 每次人工点击都会暂停自动轮播；最后一次点击 3 秒后恢复。
+// 标题动画播放期间不响应点击，保证下方文案完全不动。
 async function toggleHitokoto() {
+  if (!titleAnimationDone.value) return;
+
   const isFirstManualInteraction = !disableAuto.value;
 
   pauseHitokotoCycle();
@@ -103,20 +207,31 @@ async function toggleHitokoto() {
   manualSloganTimeout.value = setTimeout(resumeHitokotoCycle, 3000);
 }
 
-// 真正执行一次请求并显示结果
-async function fetchAndShowHitokoto() {
+// 只请求并缓存，不改变当前展示内容（动画期间先缓存一句）
+async function fetchHitokoto() {
+  const requestId = ++hitokotoRequestId;
   try {
     const result = await getHitokoto();
+    // 期间若有更新的请求发出，丢弃这次结果
+    if (requestId !== hitokotoRequestId) return false;
     hitokotoData.value = {
       hitokoto: result.hitokoto,
       from: result.from,
       from_who: result.from_who
     };
-    isHitokotoDisplayed.value = true;
-    isManualSloganDisplayed.value = false;
+    return true;
   } catch (err) {
     console.error('一言获取失败：', err);
+    return false;
   }
+}
+
+// 请求并立即展示
+async function fetchAndShowHitokoto() {
+  const success = await fetchHitokoto();
+  if (!success) return;
+  isHitokotoDisplayed.value = true;
+  isManualSloganDisplayed.value = false;
 }
 
 // 自动轮询执行
@@ -124,14 +239,23 @@ async function autoToggleHitokoto() {
   await fetchAndShowHitokoto();
 }
 
-// 启动首次延迟 + 后续自动轮询
+// 启动首次延迟 + 后续自动轮询。
+// 首次延迟 = 标题动画时长 + 3s；动画结束后仍有 3s 让定稿画面停留。
 function startHitokotoCycle() {
   if (disableAuto.value) return;
+  const elapsed = titleStartedAt ? Date.now() - titleStartedAt : 0;
+  const delay = Math.max(HITOKOTO_DELAY_MS - elapsed, 0);
   hitokotoInitialTimeout.value = setTimeout(async () => {
-    await fetchAndShowHitokoto();
+    if (hitokotoData.value.hitokoto) {
+      // 使用动画期间缓存好的那一句，避免首屏再等一次请求。
+      isHitokotoDisplayed.value = true;
+      isManualSloganDisplayed.value = false;
+    } else {
+      await fetchAndShowHitokoto();
+    }
     autoSwitchInterval.value = setInterval(autoToggleHitokoto, 7000);
     autoSwitchActive.value = true;
-  }, 4000);
+  }, delay);
 }
 
 // 手动标语停留 3 秒后，恢复正常的一言轮播。
@@ -188,6 +312,12 @@ watch(() => store.bannerType, val => (bannerType.value = val));
 
 onMounted(() => {
   if (props.type === 'text') {
+    // 动画期间只缓存一句，不切换下方文案
+    titleStartedAt = Date.now();
+    fetchHitokoto();
+    titleDoneTimer = setTimeout(() => {
+      titleAnimationDone.value = true;
+    }, TITLE_ANIMATION_MS);
     startHitokotoCycle();
     document.addEventListener('visibilitychange', handleVisibilityChange);
   }
@@ -195,6 +325,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   pauseHitokotoCycle();
+  if (titleDoneTimer) {
+    clearTimeout(titleDoneTimer);
+    titleDoneTimer = null;
+  }
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
@@ -219,13 +353,157 @@ onBeforeUnmount(() => {
       animation: fade-up-opacity 0.8s 0.5s forwards;
     }
   }
-  .title {
-    font-family: "Site Title";
-    font-weight: bold;
-    font-size: 2.75rem;
+  .title-lockup {
+    --title-timeline: 7.2s;
+    --py-size: min(3.7rem, 7.8vw);
+    --cn-size: min(2.9rem, 6.6vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    color: var(--main-font-color);
+    font-weight: 400;
+    line-height: 1;
+    text-align: center;
+    user-select: none;
+  }
+  .title-stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 15em;
+    max-width: 100%;
+    overflow: hidden;
+    clip-path: inset(0);
+    font-size: var(--cn-size);
+  }
+  .title-py {
+    grid-area: 1 / 1;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    font-family: "Title Xiaolai", "Site Title", var(--main-font-family);
+    font-size: var(--py-size);
+    font-weight: 400;
+    letter-spacing: -0.05em;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translateX(-180%);
+    animation: py-exit var(--title-timeline) cubic-bezier(0.55, 0, 0.85, 0.36) both;
+
+    .py-char {
+      position: relative;
+      display: inline-block;
+      line-height: 1;
+      animation: py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(var(--i) * 0.04s);
+
+      &.is-dot {
+        width: 0.72em;
+        color: var(--main-font-second-color);
+        text-align: center;
+      }
+
+      &.o-morph {
+        width: 0.58em;
+        text-align: center;
+        will-change: width;
+        animation:
+          py-char-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 0.04s) both,
+          o-morph var(--title-timeline) cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+    }
+
+    .o-glyph {
+      display: inline-block;
+      line-height: 1;
+      animation: glyph-hide var(--title-timeline) linear both;
+    }
+
+    .o-capsule {
+      position: absolute;
+      top: 53%;
+      right: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 0.76em;
+      border-radius: 999px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 45%),
+        linear-gradient(120deg, #a7f3e4 0%, #5eead4 45%, #2dd4bf 100%);
+      box-shadow:
+        0 0.08em 0.22em rgba(45, 212, 191, 0.26),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) scaleY(0.55);
+      animation:
+        capsule-in var(--title-timeline) cubic-bezier(0.16, 1, 0.3, 1) both,
+        capsule-hue 4.4s ease-in-out 1.3s both;
+      will-change: opacity, transform, filter;
+
+      .o-icon {
+        position: absolute;
+        inset: 0;
+        width: 0.66em;
+        height: 0.66em;
+        margin: auto;
+        color: #fff;
+        opacity: 0;
+        transform: scale(0.4) rotate(-12deg);
+        animation: icon-pop 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: calc(1.32s + var(--i) * 0.64s);
+      }
+    }
+  }
+  .title-cn {
+    grid-area: 1 / 1;
+    display: flex;
+    justify-content: center;
+    font-family: "Title Xiaolai", "Site Title", var(--main-font-family);
+    font-size: var(--cn-size);
+    font-weight: 400;
+    line-height: 1.24;
+    white-space: nowrap;
+
+    // 7em = 前缀 7 个字；宽度从 0 撑到 7em 时把右侧品牌推到最终位置
+    .cn-prefix {
+      display: flex;
+      flex: none;
+      justify-content: flex-end;
+      width: 7em;
+      overflow: hidden;
+      animation: prefix-push 0.55s linear 6.8s both;
+    }
+
+    .cn-brand {
+      display: flex;
+      flex: none;
+    }
+
+    .cn-char {
+      display: inline-block;
+      white-space: pre;
+    }
+
+    .prefix-char {
+      flex: none;
+      animation: prefix-char-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(6.82s + var(--i) * 0.078s);
+    }
+
+    .brand-char {
+      flex: none;
+      animation: brand-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(6s + var(--i) * 0.04s);
+    }
   }
   .subtitle {
     width: 80%;
+    margin-top: 0.9rem;
     font-size: 1.25rem;
     opacity: 0.8;
     animation: fade-up-opacity 0.6s 0.1s backwards;
@@ -252,8 +530,8 @@ onBeforeUnmount(() => {
   @media (max-width: 768px) {
     align-items: flex-start;
     height: 240px;
-    .title {
-      font-size: 2.25rem;
+    .title-lockup {
+      --cn-size: 2.4rem;
     }
     .subtitle {
       height: 50px;
@@ -262,6 +540,16 @@ onBeforeUnmount(() => {
       .text {
         text-align: left;
       }
+    }
+  }
+  @media (max-width: 480px) {
+    .title-lockup {
+      --cn-size: 1.6rem;
+    }
+  }
+  @media (max-width: 360px) {
+    .title-lockup {
+      --cn-size: 1.45rem;
     }
   }
 }
@@ -331,6 +619,170 @@ onBeforeUnmount(() => {
     .footer-right {
       display: none;
     }
+  }
+}
+
+/*
+ * 首页标题动画（逐帧对照 workbuddy.cn 的 hero-title WebP）：
+ * 0.0-1.2s   拼音逐字浮入
+ * 1.09-1.70s 字母 o 撑成薄荷胶囊
+ * 1.32-5.12s 胶囊内轮播 6 个图标
+ * 5.26-5.62s 胶囊收窄、还原成 o
+ * 5.62-6.01s 整行拼音向左滑出画面
+ * 6.00-6.54s 「池鱼小栈」单独落到画面中心
+ * 6.80-7.35s 「你好，欢迎来到」贴着「池鱼小栈」从右往左逐字落下
+ * 6.82-7.55s 七个字从右到左依次淡入，同时把四个字往右推到最终位置
+ * 最终状态即基础样式：无 JS / prefers-reduced-motion 时直接呈现欢迎语。
+ */
+@keyframes py-char-in {
+  0% {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(0.5em) rotate(3deg);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes py-exit {
+  0%,
+  78% {
+    transform: translateX(0);
+  }
+  83.5%,
+  100% {
+    transform: translateX(-180%);
+  }
+}
+
+@keyframes o-morph {
+  0%,
+  16% {
+    width: 0.58em;
+  }
+  25%,
+  73% {
+    width: 1.6em;
+  }
+  78%,
+  100% {
+    width: 0.58em;
+  }
+}
+
+@keyframes capsule-in {
+  0%,
+  15% {
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0.55);
+  }
+  18%,
+  74% {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0.55);
+  }
+}
+
+@keyframes glyph-hide {
+  0%,
+  12% {
+    opacity: 1;
+  }
+  15.5%,
+  73.5% {
+    opacity: 0;
+  }
+  78%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes capsule-hue {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  40% {
+    filter: hue-rotate(20deg);
+  }
+  72% {
+    filter: hue-rotate(52deg);
+  }
+  100% {
+    filter: hue-rotate(0deg);
+  }
+}
+
+@keyframes icon-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  16%,
+  84% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85) rotate(6deg);
+  }
+}
+
+@keyframes brand-in {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(0.42em);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: translateY(0);
+  }
+}
+
+@keyframes prefix-char-in {
+  0% {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateY(-0.38em);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: translateY(0);
+  }
+}
+
+@keyframes prefix-push {
+  0% {
+    width: 0;
+  }
+  100% {
+    width: 7em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-py,
+  .title-py .py-char,
+  .title-py .o-morph,
+  .title-py .o-glyph,
+  .title-py .o-capsule,
+  .title-py .o-icon,
+  .cn-prefix,
+  .prefix-char,
+  .brand-char {
+    animation: none;
   }
 }
 </style>
