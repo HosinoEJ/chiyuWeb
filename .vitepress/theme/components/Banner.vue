@@ -166,8 +166,12 @@ function measureMorph() {
 // 标题动画在 10.08s 结束（平移 8.95s 开始、0.6s 完成；前缀 9.52s 起逐字落，最后一字 10.08s 落定），
 // 取 10.2s 定稿；随机文案在动画结束后再等 3s 才开始。
 const TITLE_ANIMATION_MS = 10200;
-const HITOKOTO_DELAY_MS = TITLE_ANIMATION_MS + 3000;
+// 手机端走简化版（见样式里的 768px 断点）：没有英文行与胶囊，只有一段 0.7s 的整体入场，
+// 定稿时间同步缩短，否则一言要等到 13s 才出现，首屏会一直钉在静态标语上。
+const MOBILE_QUERY = "(max-width: 768px)";
+const MOBILE_TITLE_ANIMATION_MS = 800;
 const titleAnimationDone = ref(false);
+let titleAnimMs = TITLE_ANIMATION_MS;
 let titleStartedAt = 0;
 let titleDoneTimer = null;
 
@@ -294,7 +298,7 @@ async function autoToggleHitokoto() {
 function startHitokotoCycle() {
   if (disableAuto.value) return;
   const elapsed = titleStartedAt ? Date.now() - titleStartedAt : 0;
-  const delay = Math.max(HITOKOTO_DELAY_MS - elapsed, 0);
+  const delay = Math.max(titleAnimMs + 3000 - elapsed, 0);
   hitokotoInitialTimeout.value = setTimeout(async () => {
     if (hitokotoData.value.hitokoto) {
       // 使用动画期间缓存好的那一句，避免首屏再等一次请求。
@@ -362,18 +366,23 @@ watch(() => store.bannerType, val => (bannerType.value = val));
 
 onMounted(() => {
   if (props.type === 'text') {
+    // 手机端没有英文/胶囊这一段，胶囊的实测宽度也就不需要了
+    const isMobileViewport = window.matchMedia(MOBILE_QUERY).matches;
+    titleAnimMs = isMobileViewport ? MOBILE_TITLE_ANIMATION_MS : TITLE_ANIMATION_MS;
     // 动画期间只缓存一句，不切换下方文案
     titleStartedAt = Date.now();
     fetchHitokoto();
     titleDoneTimer = setTimeout(() => {
       titleAnimationDone.value = true;
-    }, TITLE_ANIMATION_MS);
+    }, titleAnimMs);
     startHitokotoCycle();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    // 实测 Log / Note 词宽；小赖字体就绪后再测一次，避免回退字体导致宽度偏差
-    requestAnimationFrame(measureMorph);
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(() => requestAnimationFrame(measureMorph));
+    if (!isMobileViewport) {
+      // 实测 Log / Note 词宽；小赖字体就绪后再测一次，避免回退字体导致宽度偏差
+      requestAnimationFrame(measureMorph);
+      if (document.fonts?.ready) {
+        document.fonts.ready.then(() => requestAnimationFrame(measureMorph));
+      }
     }
   }
 });
@@ -639,29 +648,45 @@ onBeforeUnmount(() => {
     animation: moveDown 2s ease-in-out infinite;
     cursor: pointer;
   }
+  // 手机端单独一套：
+  // 十秒的编排（英文 → 胶囊 → Logo → 逐字落下）在 390px 宽度里英文只有 30px、
+  // 中文 26px，字号层级被压平，Logo 的 1.3 倍放大和 3.5em 平移也几乎没有余量，
+  // 看上去就是一团在动。这里直接去掉英文行与胶囊，只留中文欢迎语 + 一次 0.7s 的整体入场；
+  // 字号改用 min() 跟视口联动，320~768 之间连续缩放，不再靠 2.4/1.6/1.45rem 跳档。
   @media (max-width: 768px) {
-    align-items: flex-start;
+    align-items: center;
     height: 240px;
     .title-lockup {
-      --cn-size: 2.4rem;
+      --cn-size: min(2.4rem, 6.8vw);
     }
-    .subtitle {
-      height: 50px;
-      font-size: 1.125rem;
-      margin-left: 8px;
-      .text {
-        text-align: left;
+    .title-py {
+      display: none;
+    }
+    .title-cn {
+      .cn-slide {
+        transform: none;
+        animation: title-cn-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        will-change: auto;
+      }
+      .cn-brand {
+        transform: none;
+        animation: none;
+        will-change: auto;
+      }
+      .prefix-char,
+      .brand-char {
+        animation: none;
       }
     }
-  }
-  @media (max-width: 480px) {
-    .title-lockup {
-      --cn-size: 1.6rem;
-    }
-  }
-  @media (max-width: 360px) {
-    .title-lockup {
-      --cn-size: 1.45rem;
+    .subtitle {
+      width: 100%;
+      height: 50px;
+      margin: 0.75rem 0 0;
+      padding: 0 1.25rem;
+      font-size: 1.125rem;
+      .text {
+        text-align: center;
+      }
     }
   }
 }
@@ -885,6 +910,20 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 手机端：整组欢迎语一次淡入上浮，替代桌面端的三段编排 */
+@keyframes title-cn-in {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(0.3em);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform: translateY(0);
+  }
+}
+
 @keyframes prefix-char-in {
   0% {
     opacity: 0;
@@ -911,7 +950,10 @@ onBeforeUnmount(() => {
   .cn-slide,
   .cn-brand,
   .prefix-char,
-  .brand-char {
+  .brand-char,
+  // 手机端的整体入场同样要能关掉（选择器比断点里的规则更具体）
+  .banner .title-lockup .title-cn .cn-slide,
+  .banner .title-lockup .title-cn .cn-brand {
     animation: none;
   }
 }
