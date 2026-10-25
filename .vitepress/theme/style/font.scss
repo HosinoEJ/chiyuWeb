@@ -4,6 +4,13 @@
   src: url("/fonts/title.ttf");
 }
 
+/* 小赖字体子集：首页标题动画的英文（Chiyu's Logbook / Note）+ 欢迎语，共 27 个字，4.4KB */
+@font-face {
+  font-family: "Title Xiaolai";
+  font-display: swap;
+  src: url("/fonts/title-anim.woff2") format("woff2");
+}
+
 html,
 body,
 #app {
